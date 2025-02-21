@@ -162,11 +162,6 @@ int main(int argc, char** argv){
         GLint uLocation = glGetUniformLocation(window.GetShader(), "worldAmbients.lightingStrength");
         glGetUniformfv(window.GetShader(), uLocation, &lightLevel);
 
-        window.SetShader(Window::SHADOW);
-        uLocation = glGetUniformLocation(window.GetShader(), "worldAmbients.lightingStrength");
-        glGetUniformfv(window.GetShader(), uLocation, &lightLevel);
-        window.SetShader(Window::BASEMESH);
-
         glm::vec3 background = glm::vec3(179/255.0f, 199/255.0f, 242/255.0f) * lightLevel;
         glClearColor(background.r, background.g, background.b, 1.0f); //background colour
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
