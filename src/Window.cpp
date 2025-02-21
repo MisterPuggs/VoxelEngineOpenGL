@@ -5,7 +5,7 @@
 #include "Window.h"
 
 Window::Window() {
-    winRect = {0, 0, 1000, 700};
+    winRect = {0, 0, 1600, 900};
     aspectRatio = (float)winRect.w / (float)winRect.h;
     printf("ASPECT RATIO: %f\n", aspectRatio);
     int b_top, b_left, b_right, b_bottom;
@@ -59,10 +59,6 @@ unsigned int Window::CreateShaders() {
 
     baseMeshShader = CreateShader(vertexShader, fragmentShader);
 
-    // Load the shadows shaders
-    vertexShader = LoadShaderSourceFromFile("../src_shader/shadowVertex.glsl");
-    fragmentShader = LoadShaderSourceFromFile("../src_shader/shadowFragment.glsl");
-
     shadowShader = CreateShader(vertexShader, fragmentShader);
 
     // effectively a check for if CreateShader has failed for this shader in particular
@@ -90,10 +86,6 @@ void Window::SetShader(const Window::Shader &_shader) {
             activeShader = baseMeshShader;
             break;
 
-        case SHADOW:
-            glUseProgram(shadowShader);
-            activeShader = shadowShader;
-            break;
     }
 }
 

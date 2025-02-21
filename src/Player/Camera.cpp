@@ -57,17 +57,13 @@ void Camera::UpdateLookatUniform() const {
     if (uLocation < 0) printf("base location not found [matricies.uViewMatrix]");
     else glUniformMatrix4fv(uLocation, 1, GL_FALSE, &GetViewMatrix()[0][0]);
 
-    window.SetShader(Window::SHADOW);
-    uLocation = glGetUniformLocation(window.GetShader(), "matricies.uViewMatrix");
-    if (uLocation < 0) printf("shadow location not found [matricies.uViewMatrix]");
-    else glUniformMatrix4fv(uLocation, 1, GL_FALSE, &GetViewMatrix()[0][0]);
     window.SetShader(Window::BASEMESH);
 }
 
 
 void Camera::UpdateViewFrustrum() {
     // Get rows from projection matrix
-    const float halfVertFarSide = maxDistance * tanf(fovAngleY * .5f);
+    const float halfVertFarSide = maxDistance * tanf(fovAngleY * 0.5f);
     const float halfHoriFarSide = halfVertFarSide * window.GetAspectRatio() * 0.5f;
     const glm::vec3 farDistance = maxDistance * direction;
 

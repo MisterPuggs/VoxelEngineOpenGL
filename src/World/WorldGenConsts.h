@@ -48,17 +48,6 @@ static const int chunkArea = chunkSize * chunkSize;
 static const int chunkProfile = chunkSize * chunkHeight;
 static const int chunkVolume = chunkArea * chunkHeight;
 
-// TRACKING TIME FOR CREATING CHUNKS
-inline int nChunksCreated;
-inline Uint64 chunkAvgTicksTaken = 0;
-inline Uint64 chunkSumTicksTaken = 0;
-
-// TRACKING TIME FOR CREATING BLOCK MESHES
-inline int nMeshesCreated;
-inline Uint64 meshAvgTicksTaken = 0;
-inline Uint64 meshSumTicksTaken = 0;
-
-
 /*
  * MOVEMENT VALUES
  */

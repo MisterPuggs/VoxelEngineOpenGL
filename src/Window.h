@@ -40,7 +40,7 @@ class Window {
         void SetWindowSize(int _w, int _h);
 
         // Shaders
-        enum Shader { BASEMESH, SHADOW};
+        enum Shader { BASEMESH};
         void SetShader(const Window::Shader &_shader);
 
         // Getters
