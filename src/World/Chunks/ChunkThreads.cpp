@@ -132,7 +132,7 @@ void ChunkThreads::ThreadLoop() {
 
 
         // debug statements
-        if (actionQueue.empty() || lastAction) PrintThreadResults();
+        if ((actionQueue.empty() || lastAction) && debugOutputEnabled) PrintThreadResults();
     }
 
     finished = true;

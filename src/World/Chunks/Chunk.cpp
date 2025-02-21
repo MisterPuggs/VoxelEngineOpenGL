@@ -10,7 +10,6 @@
 
 #include "../../Blocks/CreateBlock.h"
 #include "../../GlobalStates.h"
-#include "../Structures/LoadStructure.h"
 #include "../World.h"
 
 /*
@@ -38,6 +37,7 @@ Chunk::Chunk(const glm::vec3& _chunkPosition, ChunkData _chunkData) {
 
 Chunk::~Chunk() {
     uniqueBlockMap.clear();
+    std::unique_lock meshLock(meshMutex);
     uniqueMeshMap.clear();
 
 //    printf("CHUNK AT %f %f DESTROYED\n", chunkIndex.x, chunkIndex.z);
@@ -86,10 +86,102 @@ void Chunk::DisplayTransparent() {
 }
 
 
+void Chunk::FloodFillFrom(const glm::vec3 &_blockPos, bool _chunkOnly) {
 
 
 
+    glm::vec3 adjDirs[] = {dirLeft, dirRight, dirFront, dirBack};
+    glm::vec3 floodDirs[] = {dirLeft, dirRight, dirFront, dirBack, dirBottom};
 
+    ChunkDataTypes::ChunkBlock thisBlockData = GetBlockAtPosition(_blockPos);
+    Block thisBlockObj = GetBlockFromData(thisBlockData.type);
+
+    GLbyte filter = thisBlockObj.GetSharedAttribute(BLOCKATTRIBUTE::TRANSPARENT);
+    if (filter == 0) {
+        // Solid Block. Set skylight to 0. No light to flood to surroundings from this block
+        thisBlockData.attributes.skyLight = 0;
+        SetBlockAttributesAtPosition(_blockPos, thisBlockData.attributes);
+
+        // Flood to surroundings and end
+        for (const auto &dir: floodDirs) {
+            // Will only flood to adjacent if they are part of the chunk
+            glm::vec3 blockPos = _blockPos + dir;
+            if (blockPos.z < 0 || blockPos.z >= chunkSize || blockPos.x < 0 || blockPos.x >= chunkSize)
+                continue;
+            else if (GetChunkBlockAttributesAtPosition(blockPos).skyLight < thisBlockData.attributes.skyLight) {
+                // Will only flood if it can increase light level
+                FloodFillFrom(blockPos, _chunkOnly);
+            }
+        }
+
+        return;
+    }
+
+
+    // Fetch light from above first
+    GLbyte lightAbove = 15; // Use WorldTime to get light
+    if (_blockPos.y + dirTop.y < chunkHeight) {
+        ChunkDataTypes::ChunkBlock blockAbove = GetBlockAtPosition(_blockPos + dirTop);
+        lightAbove = GLbyte(blockAbove.attributes.skyLight - filter);
+        lightAbove = std::max((GLbyte) 0, lightAbove);
+    }
+
+    thisBlockData.attributes.skyLight = std::max(lightAbove, thisBlockData.attributes.skyLight);
+
+    // Pull in surrounding skylight values
+    for (const auto &dir: adjDirs) {
+        ChunkDataTypes::ChunkBlock blockAdj = GetBlockAtPosition(_blockPos + dir);
+        GLbyte lightAdj = GLbyte(blockAdj.attributes.skyLight - filter);
+        thisBlockData.attributes.skyLight = std::max(lightAdj, thisBlockData.attributes.skyLight);
+    }
+
+    SetBlockAttributesAtPosition(_blockPos, thisBlockData.attributes);
+
+    // Push out new skylight value
+    for (const auto &dir: floodDirs) {
+        glm::vec3 blockPos = _blockPos + dir;
+        if (blockPos.z < 0 || blockPos.z >= chunkSize || blockPos.x < 0 || blockPos.x >= chunkSize)
+            continue;
+        else if (GetChunkBlockAttributesAtPosition(blockPos).skyLight < thisBlockData.attributes.skyLight) {
+            // Will only flood if it can increase light level
+            FloodFillFrom(blockPos, _chunkOnly);
+        }
+    }
+}
+
+
+void Chunk::FloodFillSkyLight() {
+//    auto st = std::chrono::high_resolution_clock::now();
+
+    for (int x = 0; x < chunkSize; ++x) {
+        for (int z = 0; z < chunkSize; ++z) {
+
+//            int maxY = (int)GetHeightAt(x, z);
+            for (int y = chunkHeight - 1; y >= 0; --y) {
+                ChunkDataTypes::ChunkBlock thisBlockData = GetChunkBlockAtPosition({x,y,z});
+                Block thisBlockObj = GetBlockFromData(thisBlockData.type);
+
+                GLbyte filter = thisBlockObj.GetSharedAttribute(BLOCKATTRIBUTE::TRANSPARENT);
+                if (filter == 0) {
+                    thisBlockData.attributes.skyLight = 0;
+                    SetBlockAttributesAtPosition({x,y,z}, thisBlockData.attributes);
+                    continue;
+                }
+
+                if (thisBlockData.type == BlockType{AIR, 0}) {
+                    filter = 0;
+                }
+
+                GLbyte aboveLight = 15; // get world lightlevel
+                if (y + 1 < chunkHeight) {
+                    aboveLight = GLbyte(GetBlockAttributesAtPosition({x,y+1,z}).skyLight - filter);
+                }
+                thisBlockData.attributes.skyLight = aboveLight;
+                SetBlockAttributesAtPosition({x,y,z}, thisBlockData.attributes);
+            }
+        }
+    }
+}
 
 
 
@@ -155,6 +247,9 @@ void Chunk::CreateChunkMeshes() {
 
                 // Calculate Occlusion
                 CalculateOcclusion(verticies, blockPtr, {x,y,z});
+
+                // Retrieve Lighting
+                ApplyChunkLighting(verticies, {x,y,z});
 
                 // Add to blockMesh
                 blockMesh->AddVerticies(verticies, {x,y,z});
@@ -255,6 +350,45 @@ std::vector<BLOCKFACE> Chunk::GetShowingFaces(glm::vec3 _blockPos, const Block& 
     return showingFaces;
 }
 
+void Chunk::ApplyChunkLighting(std::vector<UniqueVertex> &_verticies, const glm::vec3& _position) const {
+    for (auto& vertex : _verticies) {
+        glm::vec3 adjDir;
+
+        switch ((BLOCKFACE)vertex.facing) {
+            case FRONT:
+                adjDir = dirFront;
+                break;
+
+            case BACK:
+                adjDir = dirBack;
+                break;
+
+            case LEFT:
+                adjDir = dirLeft;
+                break;
+
+            case RIGHT:
+                adjDir = dirRight;
+                break;
+
+            case TOP:
+                adjDir = dirTop;
+                break;
+
+            case BOTTOM:
+                adjDir = dirBottom;
+                break;
+
+            default:
+                vertex.lightLevel = 0;
+                continue;
+        }
+
+        BlockAttributes blockAtFace = GetBlockAttributesAtPosition(_position + adjDir);
+        GLbyte light = std::max(blockAtFace.skyLight, blockAtFace.blockLight);
+        vertex.lightLevel = light;
+    }
+}
 
 void Chunk::CalculateOcclusion(std::vector<UniqueVertex>& _verticies, Block& _block, const glm::vec3& _position) {
     // No changes necessary
@@ -369,6 +503,11 @@ void Chunk::CheckCulling(const Camera& _camera) {
 }
 
 
+float Chunk::GetHeightAt(int _x, int _z) {
+    float hmTopLevel = chunkData.heightMap[_x + _z * chunkSize];
+    return hmTopLevel;
+}
+
 
 /*
  * Generates the chunk's blocks into the 3d terrain array using stored data maps
@@ -386,7 +525,7 @@ void Chunk::GenerateChunk() {
 
     // Generate any structures that appear
 
-    // Mark chunk as ready to Generate Meshes
+    //
     MarkForMeshUpdates();
     generated = true;
 }
@@ -683,6 +822,7 @@ void Chunk::SetChunkBlockAttributesAtPosition(const glm::vec3 &_blockPos, const 
  */
 
 ChunkDataTypes::ChunkBlock Chunk::GetBlockAtPosition(glm::vec3 _blockPos) const {
+    glm::vec3 blockPos = _blockPos;
     auto blockChunk = GetChunkAtBlockPos(_blockPos);
     if (blockChunk == nullptr) return {};
 
@@ -793,7 +933,7 @@ float Chunk::GetDistanceToBlockFace(glm::vec3 _blockPos, glm::vec3 _direction, f
     // Get min and max face verticies for x and z position
     faceVerticies = blockPtr.GetFaceVerticies({face}, block.attributes);
     for (auto& vertex : faceVerticies) {
-        glm::vec3 vertexPosition = vertex.worldPosition + vertex.modelVertex;
+        glm::vec3 vertexPosition = vertex.chunkPosition + vertex.modelVertex;
         if (vertexPosition.z + glm::ceil(_blockPos.z) + _direction.z < minZ)
             minZ = vertexPosition.z + glm::ceil(_blockPos.z) + _direction.z;
         if (vertexPosition.z + glm::floor(_blockPos.z) + _direction.z > maxZ)

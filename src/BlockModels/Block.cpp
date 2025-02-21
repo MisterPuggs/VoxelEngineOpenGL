@@ -236,6 +236,7 @@ void Block::Display(const Transformation& _t) const {
     glEnableVertexAttribArray(4);
     glVertexAttrib3f(2, 0,0,0);
     glVertexAttrib1f(6, 3);
+    glVertexAttrib1f(7, 15);
     glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, nullptr);
     glDisableVertexAttribArray(1);
     glDisableVertexAttribArray(4);
@@ -373,6 +374,7 @@ std::vector<UniqueVertex> Block::GetFaceVerticies(const std::vector<BLOCKFACE> &
                     texturePositions[i - (face*6)],
                     {0,0},
             };
+            uFaceVertex.facing = face;
 
             if (blockData == BlockType{WATER, 0} && uFaceVertex.modelVertex.y == 0)
                 uFaceVertex.modelVertex.y = -0.2;
