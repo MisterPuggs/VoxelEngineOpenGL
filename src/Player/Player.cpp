@@ -92,6 +92,7 @@ void Player::HandleMovement(Uint64 _deltaTicks) {
     const std::uint8_t* keyInputs = SDL_GetKeyboardState(nullptr);
     switch (movementMode) {
         case MOVEMENTMODE::FLYING:
+        case MOVEMENTMODE::UNRESTRICTED:
             FlyingMovement(keyInputs, seconds);
             break;
 
@@ -324,7 +325,7 @@ void Player::UpdateMaxPositions() {
 }
 
 void Player::EnforcePositionBoundaries(float _seconds) {
-    if (movementMode == MOVEMENTMODE::FLYING) return;
+    if (movementMode == MOVEMENTMODE::UNRESTRICTED) return;
 
     // Check against min and max position values
     if (position.x - radius - 0.05f < minX) {
@@ -433,23 +434,25 @@ void Player::MouseLook(SDL_bool _mouseGrabbed) {
 void Player::HandlePlayerInputs(const SDL_Event &_event) {
     if (playerChunk == nullptr) return;
 
-    if (_event.type == SDL_MOUSEBUTTONDOWN) {
-        switch (_event.button.button) {
-            case SDL_BUTTON_LEFT:
-                BreakBlock(unobstructedRayPosition);
-                break;
+    switch (_event.type) {
+        case SDL_MOUSEBUTTONDOWN:
+            switch (_event.button.button) {
+                case SDL_BUTTON_LEFT:
+                    BreakBlock(unobstructedRayPosition);
+                    break;
 
-            case SDL_BUTTON_RIGHT:
-                PlaceBlock(unobstructedRayPosition);
-                break;
-        }
+                case SDL_BUTTON_RIGHT:
+                    PlaceBlock(unobstructedRayPosition);
+                    break;
+            }
+            break;
+
+        case SDL_MOUSEWHEEL:
+            mouseScroll += (float)_event.wheel.y * 2.0f;
+            SelectHotbarItem();
+            break;
     }
 
-    if (_event.type == SDL_MOUSEWHEEL) {
-        float scrollSensitivity = 2.0f;
-        mouseScroll += (float)_event.wheel.y * scrollSensitivity;
-        SelectHotbarItem();
-    }
 }
 
 void Player::GetUnobstructedRayPosition() {
@@ -523,14 +526,15 @@ void Player::PlaceBlock(glm::vec3 _rayPosition) {
 
 
 void Player::SelectHotbarItem() {
-    if (mouseScroll < 5) blockInHandType = {STONE, 0};
+    if (mouseScroll < 0) mouseScroll = 44 - mouseScroll;
+    else if (mouseScroll < 5) blockInHandType = {STONE, 0};
     else if (mouseScroll < 10) blockInHandType = {DIRT, 0};
     else if (mouseScroll < 15) blockInHandType = {GRASS, 0};
     else if (mouseScroll < 20) blockInHandType = {SAND, 0};
     else if (mouseScroll < 25) blockInHandType = {WOOD, 0};
     else if (mouseScroll < 30) blockInHandType = {LEAVES, 0};
-    else if (mouseScroll < 35) blockInHandType = {STONE, 0};
-    else if (mouseScroll < 40) blockInHandType = {STONE, 0};
-    else if (mouseScroll < 45) blockInHandType = {STONE, 0};
+    else if (mouseScroll < 35) blockInHandType = {GRASSPLANT, 0};
+    else if (mouseScroll < 40) blockInHandType = {AIR, 0};
+    else if (mouseScroll < 45) blockInHandType = {AIR, 0};
     else if (mouseScroll >= 45) mouseScroll -= 45;
 }

@@ -12,7 +12,7 @@
 #include "../World/Chunks/Chunk.h"
 
 enum class MOVEMENTMODE {
-        WALKING, FLYING, // ...
+        WALKING, FLYING, UNRESTRICTED, // ...
 };
 
 class Player {
@@ -35,7 +35,7 @@ class Player {
         std::shared_ptr<Chunk> playerChunk {};
 
         // Movement Info
-        MOVEMENTMODE movementMode = MOVEMENTMODE::FLYING;
+        MOVEMENTMODE movementMode = MOVEMENTMODE::UNRESTRICTED;
         bool canStartFly = true;
         bool jumpStarted = false;
         float timeSinceLastJump = 0;
