@@ -54,5 +54,5 @@ void main() {
     color = vec4(color.rgb * occlusion, color.a);
 
     // Apply lighting
-    color = vec4(color.rgb * worldAmbients.lightingStrength, color.a);
+    color = vec4(color.rgb * v_vertexLightLevel * worldAmbients.lightingStrength, color.a);
 }

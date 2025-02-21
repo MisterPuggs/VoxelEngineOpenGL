@@ -23,7 +23,7 @@ void MaterialMesh::AddVerticies(const std::vector<UniqueVertex>& _verticies, con
 
     for (const UniqueVertex& vertex : _verticies) {
         vertexArray.push_back(vertex);
-        vertexArray.back().worldPosition = _position;
+        vertexArray.back().chunkPosition = _position;
     }
 
     oldMesh = true;
@@ -67,7 +67,7 @@ void MaterialMesh::BindMesh() {
     glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(bufferVerticiesSize * sizeof(UniqueVertex)), nullptr, GL_DYNAMIC_DRAW);
 
     // Vertex Position, Model, FaceAxis Attributes
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(struct UniqueVertex), (const GLvoid*)offsetof(UniqueVertex, worldPosition));
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(struct UniqueVertex), (const GLvoid*)offsetof(UniqueVertex, chunkPosition));
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(struct UniqueVertex), (const GLvoid*)offsetof(UniqueVertex, modelVertex));
     glVertexAttribPointer(2, 3, GL_BYTE, GL_FALSE, sizeof(struct UniqueVertex), (const GLvoid*)offsetof(UniqueVertex, blockOffset));
     glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(struct UniqueVertex), (const GLvoid*)offsetof(UniqueVertex, normalAxis));
@@ -76,6 +76,7 @@ void MaterialMesh::BindMesh() {
     glVertexAttribPointer(4, 2, GL_FLOAT, GL_FALSE, sizeof(struct UniqueVertex), (const GLvoid*)offsetof(UniqueVertex, textureCoord));
     glVertexAttribPointer(5, 2, GL_BYTE, GL_FALSE, sizeof(struct UniqueVertex), (const GLvoid*)offsetof(UniqueVertex, blockRotation));
     glVertexAttribPointer(6, 1, GL_BYTE, GL_FALSE, sizeof(struct UniqueVertex), (const GLvoid*)offsetof(UniqueVertex, occlusion));
+    glVertexAttribPointer(7, 1, GL_BYTE, GL_FALSE, sizeof(struct UniqueVertex), (const GLvoid*)offsetof(UniqueVertex, lightLevel));
 
     // Bind index buffer
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBufferObject);
@@ -163,6 +164,7 @@ void MaterialMesh::DrawMesh(const Transformation& _transformation) const {
     glEnableVertexAttribArray(4);
     glEnableVertexAttribArray(5);
     glEnableVertexAttribArray(6);
+    glEnableVertexAttribArray(7);
 
     glDrawElements(GL_TRIANGLES, 6 * boundFaces, GL_UNSIGNED_INT, nullptr);
 
@@ -173,5 +175,6 @@ void MaterialMesh::DrawMesh(const Transformation& _transformation) const {
     glDisableVertexAttribArray(4);
     glDisableVertexAttribArray(5);
     glDisableVertexAttribArray(6);
+    glDisableVertexAttribArray(7);
     glBindVertexArray(0);
 }

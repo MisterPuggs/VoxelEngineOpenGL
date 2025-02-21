@@ -28,7 +28,7 @@ enum BLOCKMODEL {
  * For referencing a particular face of a block
  */
 
-enum BLOCKFACE : int {
+enum BLOCKFACE : GLbyte {
     FRONT, BACK, LEFT, RIGHT, TOP, BOTTOM, ALL
 };
 
@@ -155,7 +155,7 @@ struct BlockAttributes {
     GLbyte halfRightRotations = 0;
     GLbyte topFaceDirection = DIRECTION::UP;
     GLbyte blockLight = 0;
-    GLbyte skyLight = 15;
+    GLbyte skyLight = 0;
     glm::i8vec3 subBlockOffset {0,0,0};
 
     [[nodiscard]] GLbyte GetIndividualAttribute(BLOCKATTRIBUTE _attribute) const;

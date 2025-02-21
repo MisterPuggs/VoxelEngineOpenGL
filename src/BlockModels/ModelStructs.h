@@ -19,7 +19,7 @@ struct ModelVertex {
 
 struct UniqueVertex {
     // Positioning
-    glm::vec3 worldPosition {};
+    glm::vec3 chunkPosition {};
     glm::i8vec3 blockOffset {0,0,0};
 
     glm::vec3 modelVertex {};
@@ -28,6 +28,8 @@ struct UniqueVertex {
     glm::vec2 textureCoord {};
     glm::bvec2 blockRotation {};
     GLbyte occlusion {3};
+    GLbyte facing {};
+    GLbyte lightLevel {15};
 };
 
 struct UniqueVertexOptimised {

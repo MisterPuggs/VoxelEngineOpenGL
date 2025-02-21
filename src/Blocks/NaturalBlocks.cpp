@@ -10,7 +10,7 @@ Leaves::Leaves(GLbyte _variant) {
 
     if (_variant == 0) {
         origin = {4,2};
-        transparent = 15;
+        transparent = 1;
     }
     if (_variant == 1) {
         origin = {1, 1};
@@ -26,8 +26,6 @@ Wood::Wood(GLbyte _variant) {
     if (_variant == 0) {
         origin = {7,1};
     }
-
-    transparent = 0;
 }
 
 GrassPlant::GrassPlant(GLbyte _variant) {
@@ -38,7 +36,7 @@ GrassPlant::GrassPlant(GLbyte _variant) {
 
     origin = {2, 0};
 
-    transparent = 15;
+    transparent = 1;
     generationPriority = 1;
     entityCollisionSolid = 0;
     canBeOccluded = 0;

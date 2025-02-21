@@ -81,6 +81,9 @@ class World {
         THREAD_ACTION_RESULT CreateChunk(const glm::ivec2& _chunkIndex, const glm::vec3& _blockPos);
         THREAD_ACTION_RESULT GenerateChunk(const glm::ivec2& _chunkIndex, const glm::vec3& _blockPos);
         THREAD_ACTION_RESULT GenerateChunkMesh(const glm::ivec2& _chunkIndex, const glm::vec3& _blockPos) const;
+        THREAD_ACTION_RESULT FloodSkyLightingForChunk(const glm::ivec2& _chunkIndex, const glm::vec3& _blockPos);
+        THREAD_ACTION_RESULT FloodSkyLightingFromPosition(const glm::ivec2& _chunkIndex, const glm::vec3& _blockPos);
+        THREAD_ACTION_RESULT FloodBlockLightingFrom(const glm::ivec2& _chunkIndex, const glm::vec3& _blockPos);
 
         void ManageLoadedChunks(const std::shared_ptr<Chunk>& _currentChunk, const std::shared_ptr<Chunk>& _newChunk);
         THREAD_ACTION_RESULT CheckChunkLoaded(const glm::ivec2& _currentChunkPos, const glm::vec3& _newChunkPos);
@@ -92,6 +95,7 @@ class World {
         static int GenerateCaveChambers(glm::vec3 _blockPos, float _hmTopLevel, float _cavernosity, float _hollowness);
         static float GenerateBlockHeat(glm::vec3 _blockPos);
         static float GenerateBlockVegetation(glm::vec3 _blockPos, float _heat);
+        BlockType GenerateBlockAtPosition(const glm::vec3& _blockPos) const;
         static ChunkData GenerateChunkData(glm::vec2 _chunkPosition);
         Biome* GenerateBiome(Biome::ID _biomeID);
 

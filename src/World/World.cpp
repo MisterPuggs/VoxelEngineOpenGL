@@ -55,6 +55,7 @@ World::World() {
     chunkBuilderThread.StartThread();
     chunkMesherThread.StartThread();
     chunkLoaderThread.StartThread();
+    chunkLighterThread.StartThread();
 }
 
 World::~World() {
@@ -184,30 +185,6 @@ void World::UpdateWorldTime(Uint64 _deltaTicks) {
         worldDays += daysTime.quot;
         worldTime = daysTime.rem;
     }
-
-    // Ambient lighting
-    float min = 0.05f, max = 1.0f;
-    int time = (int)worldTime;
-    float lightLevel = max;
-
-    if (time >= 6*60 && time < 7*60) {
-        lightLevel = ((float)time - 6*60.0f) / ((7*60.0f) - (6*60.0f));
-    }
-    else if (time <= 19*60 && time > 18*60) {
-        lightLevel = 1 - ((float)time - 18*60.0f)/ ((19*60.0f) - (18*60.0f));
-    }
-    else if ((time < 6*60) || (time > 19*60)) {
-        lightLevel = min;
-    }
-
-    lightLevel = std::min(lightLevel, max);
-    lightLevel = std::max(lightLevel, min);
-
-    // Ambient Lighting
-    GLint uLocation;
-    uLocation = glGetUniformLocation(window.GetShader(), "worldAmbients.lightingStrength");
-    if (uLocation < 0) printf("location not found [worldAmbients.lightingStrength]\n");
-    else glUniform1f(uLocation, lightLevel);
 }
 
 
@@ -224,17 +201,8 @@ void World::GenerateRequiredWorldRegion() {
 
     bool loadSquare = false;
 
-    // Ensure chunks exist for loading region (and border) area
-    ThreadAction createChunkRegion{std::bind(&World::CreateChunk, this, _1, _2), loadingIndex};
-    chunkBuilderThread.AddPriorityActionRegion(createChunkRegion, loadRadius, loadSquare);
-
-    // Generate the chunks within the loading region (and not border), this will be done after the chunks are created
     ThreadAction generateChunk{std::bind(&World::GenerateChunk, this, _1, _2), loadingIndex};
     chunkBuilderThread.AddActionRegion(generateChunk, loadRadius, loadSquare);
-
-    // Mesh the chunks within the loading region
-    ThreadAction createMesh{std::bind(&World::GenerateChunkMesh, this, _1, _2), loadingIndex};
-    chunkMesherThread.AddActionRegion(createMesh, meshRadius, loadSquare);
 }
 
 
@@ -251,17 +219,9 @@ void World::GenerateLoadableWorldRegion() {
 
     bool loadSquare = false;
 
-    // Ensure chunks exist for loading region (and border) area
-    ThreadAction createChunkRegion{std::bind(&World::CreateChunk, this, _1, _2), loadingIndex};
-    chunkBuilderThread.AddActionRegion(createChunkRegion, loadRadius, loadSquare);
-
     // Generate the chunks within the loading region (and not border), this will be done after the chunks are created
     ThreadAction generateChunk{std::bind(&World::GenerateChunk, this, _1, _2), loadingIndex};
     chunkBuilderThread.AddActionRegion(generateChunk, loadRadius, loadSquare);
-
-    // Mesh the chunks within the loading region
-    ThreadAction createMesh{std::bind(&World::GenerateChunkMesh, this, _1, _2), loadingIndex};
-    chunkMesherThread.AddActionRegion(createMesh, meshRadius, loadSquare);
 }
 
 /*
@@ -273,6 +233,9 @@ THREAD_ACTION_RESULT World::CreateChunk(const glm::ivec2& _chunkIndex, const glm
     if (GetChunkAtIndex(_chunkIndex) != nullptr) {
         return ThreadAction::OK;
     }
+
+    // Retrieve any existing data
+
 
     // Get ChunkData and create the chunk
     ChunkData chunkData = GenerateChunkData(_chunkIndex);
@@ -291,7 +254,7 @@ THREAD_ACTION_RESULT World::CreateChunk(const glm::ivec2& _chunkIndex, const glm
  */
 
 THREAD_ACTION_RESULT World::GenerateChunk(const glm::ivec2& _chunkIndex, const glm::vec3& _blockPos) {
-    auto st = SDL_GetTicks64();
+    using namespace std::placeholders;
 
     auto chunk = GetChunkAtIndex(_chunkIndex);
     if (chunk == nullptr) {
@@ -310,13 +273,12 @@ THREAD_ACTION_RESULT World::GenerateChunk(const glm::ivec2& _chunkIndex, const g
     // Generate the chunk's blocks
     if (!chunk->Generated()) {
         chunk->GenerateChunk();
-
-        auto et = SDL_GetTicks64();
-
-        chunkSumTicksTaken += et - st;
-        nChunksCreated++;
-        chunkAvgTicksTaken = chunkSumTicksTaken / nChunksCreated;
     }
+
+
+    // Adds Lighting Task for the chunk
+    ThreadAction lightingAction{std::bind(&World::FloodSkyLightingForChunk, this, _1, _2), _chunkIndex};
+    chunkLighterThread.AddActionRegion(lightingAction, 0);
 
     return ThreadAction::OK;
 }
@@ -325,25 +287,110 @@ THREAD_ACTION_RESULT World::GenerateChunk(const glm::ivec2& _chunkIndex, const g
 THREAD_ACTION_RESULT World::GenerateChunkMesh(const glm::ivec2 &_chunkIndex, const glm::vec3& _blockPos) const {
     auto chunk = GetChunkAtIndex(_chunkIndex);
 
-    if (chunk != nullptr && chunk->RegionGenerated() && chunk->NeedsMeshUpdates()) {
-        auto st = SDL_GetTicks64();
+    if (chunk != nullptr && chunk->RegionGenerated()) {
         chunk->CreateChunkMeshes();
-
-        auto et = SDL_GetTicks64();
-
-        meshSumTicksTaken += et - st;
-        nMeshesCreated++;
-        meshAvgTicksTaken = meshSumTicksTaken / nMeshesCreated;
-
         return ThreadAction::OK;
     }
-    else if (chunk == nullptr || !chunk->RegionGenerated()) {
-        // TODO: can result in infinite recalling of function. apply limiter?
+    else if (chunk != nullptr) {
         return ThreadAction::RETRY;
     }
 
     return ThreadAction::FAIL;
 }
+
+
+THREAD_ACTION_RESULT World::FloodSkyLightingForChunk(const glm::ivec2 &_chunkIndex, const glm::vec3 &_blockPos) {
+    using namespace std::placeholders;
+
+    if (_blockPos.y < 0 || _blockPos.y >= chunkSize) return ThreadAction::FAIL;
+
+    auto chunk = GetChunkAtIndex(_chunkIndex);
+
+    if (chunk != nullptr && chunk->Generated()) {
+        chunk->FloodFillSkyLight();
+
+        // Adds meshing task for the chunk
+        ThreadAction meshAction{std::bind(&World::GenerateChunkMesh, this, _1, _2), _chunkIndex};
+        chunkMesherThread.AddActionRegion(meshAction, 0);
+
+        return ThreadAction::OK;
+    }
+
+    return ThreadAction::FAIL;
+}
+
+/*
+ * Starting at player chunk origin
+ * Retrieve lighting from above
+ * Set lightValue as greater of (filtered above block skylight || filtered side light)
+ * flood to side then below
+ */
+
+THREAD_ACTION_RESULT World::FloodSkyLightingFromPosition(const glm::ivec2 &_chunkIndex, const glm::vec3 &_blockPos) {
+    using namespace std::placeholders;
+
+    // Outside chunk bounds
+    if (_blockPos.y < 0 || _blockPos.y >= chunkSize) return ThreadAction::OK;
+
+    auto chunk = GetChunkAtIndex(_chunkIndex);
+    if (chunk != nullptr && chunk->RegionGenerated()) {
+
+        ChunkDataTypes::ChunkBlock thisBlock = chunk->GetBlockAtPosition(_blockPos);
+        Block thisBlockObj = chunk->GetBlockFromData(thisBlock.type);
+
+        GLbyte filter = thisBlockObj.GetSharedAttribute(BLOCKATTRIBUTE::TRANSPARENT);
+        if (filter == 0) {
+            // Solid Block. Set skylight to 0 and exit early
+            thisBlock.attributes.skyLight = 0;
+            return ThreadAction::OK;
+        }
+
+        GLbyte lightAbove = 15; // Use WorldTime to get light
+        if (_blockPos.y + dirTop.y < chunkHeight) {
+            ChunkDataTypes::ChunkBlock blockAbove = chunk->GetBlockAtPosition(_blockPos + dirTop);
+            lightAbove = GLbyte(blockAbove.attributes.skyLight - filter);
+        }
+
+        thisBlock.attributes.skyLight = std::max(lightAbove, thisBlock.attributes.skyLight);
+
+        glm::vec3 adjDirs[] {dirFront, dirBack, dirLeft, dirRight};
+        for (const auto& dir : adjDirs) {
+            ChunkDataTypes::ChunkBlock blockAdj = chunk->GetBlockAtPosition(_blockPos + dir);
+            GLbyte lightAdj = GLbyte(blockAdj.attributes.skyLight - filter);
+            thisBlock.attributes.skyLight = std::max(lightAdj, thisBlock.attributes.skyLight);
+
+            ThreadAction floodAdj{std::bind(&World::FloodSkyLightingFromPosition, this, _1, _2), _chunkIndex};
+            floodAdj.chunkBlock = _blockPos + dir;
+            chunkLighterThread.AddActionRegion(floodAdj, 0);
+        }
+
+        ThreadAction floodBelow{std::bind(&World::FloodSkyLightingFromPosition, this, _1, _2), _chunkIndex};
+        floodBelow.chunkBlock = _blockPos + dirBottom;
+        chunkLighterThread.AddActionRegion(floodBelow, 0);
+
+        return ThreadAction::OK;
+    }
+
+    return ThreadAction::FAIL;
+}
+
+THREAD_ACTION_RESULT World::FloodBlockLightingFrom(const glm::ivec2 &_chunkIndex, const glm::vec3 &_blockPos) {
+    auto chunk = GetChunkAtIndex(_chunkIndex);
+
+    // Outside chunk bounds
+    if (_blockPos.y < 0 || _blockPos.y >= chunkSize) return ThreadAction::OK;
+
+    if (chunk != nullptr && chunk->Generated()) {
+
+
+
+
+        return ThreadAction::OK;
+    }
+
+    return ThreadAction::FAIL;
+}
+
 
 
 void World::ManageLoadedChunks(const std::shared_ptr<Chunk>& _currentChunk, const std::shared_ptr<Chunk>& _newChunk) {
@@ -455,7 +502,7 @@ float World::GenerateBlockHeight(glm::vec2 _blockPos) {
 
 int World::GenerateCaveChambers(glm::vec3 _blockPos, float _hmTopLevel, float _cavernosity, float _hollowness) {
     float y = _blockPos.y;
-    float minCavernosity = 0.4f;
+    float minCavernosity = 0.5f;
 
     int solid = 1, air = -1;
 
@@ -478,12 +525,6 @@ int World::GenerateCaveChambers(glm::vec3 _blockPos, float _hmTopLevel, float _c
 
     float density = BlockDensity(_blockPos, 64, 8, 0.8, 2);
     density *= _cavernosity;
-
-    // Smooth Walls
-//    printf("d c %f %f\n", density, _cavernosity);
-
-
-
 
     return (density < -0.3) ? air : solid;
 }
@@ -511,6 +552,25 @@ float World::GenerateBlockVegetation(glm::vec3 _blockPos, float _heat) {
     return grassDensity + treeDensity;
 }
 
+BlockType World::GenerateBlockAtPosition(const glm::vec3 &_blockPos) const {
+    auto chunk = GetChunkAtBlockPosition(_blockPos);
+
+    if (chunk == nullptr) return {AIR, 0};
+
+    glm::vec3 blockMapPos = _blockPos - (chunk->GetIndex() * (float)chunkSize);
+
+    // Fetch map values
+    float hmTopLevel = chunk->GetHeightAt((int)blockMapPos.x, (int)blockMapPos.z);
+    float cavernosity = World::GenerateBlockCavernosity(blockMapPos);
+    float hollowness = World::GenerateBlockHollowness(blockMapPos); // change to hollowness
+
+    int blockDensity = World::GenerateCaveChambers(_blockPos, hmTopLevel, cavernosity, hollowness);
+    if (blockDensity < 0) return {AIR, 0};
+
+    else return chunk->GetBiome()->GetBlockType(hmTopLevel, _blockPos.y);
+
+}
+
 // Generate the height and temp maps for the given chunk starting pos
 ChunkData World::GenerateChunkData(glm::vec2 _chunkPosition) {
     int chunkX = (int)_chunkPosition.x * chunkSize;
@@ -525,16 +585,10 @@ ChunkData World::GenerateChunkData(glm::vec2 _chunkPosition) {
             float height = GenerateBlockHeight({bx, bz});
             chunkData.heightMap[x + z * chunkSize] = height;
 
-            // Get the weirdness of the given x z position
-            float weirdness = GenerateBlockHollowness({bx, bz});
-            chunkData.weirdMap[x + z * chunkSize] = weirdness;
-
-            // Get the heat value for the block
-            float heat = GenerateBlockHeat({bx,height,bz});
-            chunkData.heatMap[x + z * chunkSize] = heat;
-
             // Create block vegetation value (relate to heat, height)
+            float heat = GenerateBlockHeat({bx, height, bz});
             float vegetation = GenerateBlockVegetation({bx, height, bz}, heat);
+
             chunkData.plantMap[x + z * chunkSize] = vegetation;
         }
     }

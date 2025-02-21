@@ -66,7 +66,6 @@ class Chunk {
         std::unordered_map<BlockType, std::unique_ptr<Block>> uniqueBlockMap {};
         std::unordered_map<BlockType, std::unique_ptr<MaterialMesh>> uniqueMeshMap {};
         std::mutex meshMutex;
-        std::mutex terrainMutex;
         ChunkDataTypes::TerrainArray terrainLayers {};
         bool generated = false;
 
@@ -88,9 +87,23 @@ class Chunk {
         void DisplaySolid();
         void DisplayTransparent();
 
+        // Chunk Terrain and Structures Generation
+        float GetHeightAt(int _x, int _z);
+        void GenerateChunk();
+        void CreateTerrain();
+        void PaintTerrain();
+        void SurfaceDecorations();
+        [[nodiscard]] bool Generated() const { return generated; }
+        [[nodiscard]] bool RegionGenerated() const;
+
+        // Block Lighting
+        void FloodFillFrom(const glm::vec3& _blockPos, bool _chunkOnly);
+        void FloodFillSkyLight();
+
         // Chunk Block Meshes Creation / Updating
         void UpdateBlockMesh(Block* _meshBlock);
         void CreateChunkMeshes();
+        void ApplyChunkLighting(std::vector<UniqueVertex>& _verticies, const glm::vec3& _position) const;
         void CalculateOcclusion(std::vector<UniqueVertex>& _verticies, Block& _block, const glm::vec3& _position);
         [[nodiscard]] std::vector<BLOCKFACE> GetHiddenFaces(glm::vec3 _blockPos);
         [[nodiscard]] std::vector<BLOCKFACE> GetShowingFaces(glm::vec3 _blockPos, const Block& _checkingBlock);
@@ -102,19 +115,9 @@ class Chunk {
         [[nodiscard]] bool NeedsMeshUpdates() const { return needsMeshUpdates; }
         [[nodiscard]] bool UnboundMeshChanges() const { return unboundMeshChanges; }
 
-        // Block Lighting
-
         // Chunk Culling
         void CheckCulling(const Camera& _camera);
         [[nodiscard]] bool ChunkVisible() const { return inCamera; };
-
-        // Chunk Terrain and Structures Generation
-        void GenerateChunk();
-        void CreateTerrain();
-        void PaintTerrain();
-        void SurfaceDecorations();
-        [[nodiscard]] bool Generated() const { return generated; }
-        [[nodiscard]] bool RegionGenerated() const;
 
         // Chunk Block Interaction
         void BreakBlockAtPosition(glm::vec3 _blockPos);
@@ -133,6 +136,7 @@ class Chunk {
         [[nodiscard]] glm::vec3 GetIndex() const { return chunkIndex; }
         [[nodiscard]] glm::vec2 GetXZIndex() const { return {chunkIndex.x, chunkIndex.z}; }
         [[nodiscard]] std::shared_ptr<Chunk> GetChunkAtBlockPos(glm::vec3& _blockPos) const;
+        [[nodiscard]] Biome* GetBiome() const { return chunkData.biome; }
 };
 
 

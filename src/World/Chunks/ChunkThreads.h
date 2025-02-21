@@ -100,6 +100,7 @@ class ChunkThreads {
 
         // Debug Output
         void PrintThreadResults();
+        bool debugOutputEnabled = true;
 
         //
         [[nodiscard]] bool HasActions() const {
